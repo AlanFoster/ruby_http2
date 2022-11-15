@@ -20,6 +20,7 @@ options = {
   verbose: true,
   path: '/',
   headers: [],
+  sslkeylogfile: ENV.fetch('SSLKEYLOGFILE', nil),
   log_level: Logger::Severity::INFO
 }
 
@@ -55,9 +56,14 @@ options_parser = OptionParser.new do |opts|
     options[:protocol] = protocol
   end
 
-  opts.on('--log-level log_level', Integer, 'Log level') do |log_level|
+  opts.on('--log-level=log_level', Integer, 'Log level') do |log_level|
     options[:log_level] = log_level
   end
+
+  opts.on('--sslkeylogfile=sslkeylogfile', 'The sslkeylogfile to write to - useful for decrypting tls traffic in wireshark') do |sslkeylogfile|
+    options[:sslkeylogfile] = sslkeylogfile
+  end
+
 
   opts.on('--header=HEADER', 'An http header to send, i.e. "Host: example.com"') do |header|
     options[:headers] += [header]
@@ -81,7 +87,8 @@ client = RubyHttp2::Client.new(
   port: options[:port],
   protocol: options[:protocol],
   ssl: options[:ssl],
-  logger: logger
+  logger: logger,
+  sslkeylogfile: options[:sslkeylogfile]
 )
 
 pp client.get(options[:path], headers: options[:headers])

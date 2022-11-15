@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  service:
+    build: .
+    volumes:
+      - "./:/app"
+    command: "/bin/bash"
+    # network_mode host to allow for wireshark debugging
+    network_mode: "host"

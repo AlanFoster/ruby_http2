@@ -110,7 +110,7 @@ module RubyHttp2
         [match[:status].to_i, match[:status_text]]
       end
 
-      # @param [Object] line
+      # @param [String] line
       # @return [Array<String>] Tuple of header name and value
       def parse_header(line)
         key, value = line.split(': ', 2)
