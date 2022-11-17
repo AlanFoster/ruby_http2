@@ -22,36 +22,81 @@ RSpec.describe RubyHttp2::Protocol::Http2 do
   end
 
   describe RubyHttp2::Protocol::Http2::Model::SettingsFrame do
-    let(:data) do
-      "\x00\x00\x12\x04\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x64\x00" \
-      "\x04\x40\x00\x00\x00\x00\x02\x00\x00\x00\x00".b
+    context 'when values are being set' do
+      let(:data) do
+        "\x00\x00\x12\x04\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x64\x00" \
+        "\x04\x40\x00\x00\x00\x00\x02\x00\x00\x00\x00".b
+      end
+
+      it 'parses successfully' do
+        expected = {
+          frame_length: 18,
+          frame_type: 4,
+          flags: 0,
+          stream_identifier: 0,
+          settings: [
+            # Max concurrent streams
+            {
+              identifier: 3,
+              setting_value: 100
+            },
+            # Initial window size
+            {
+              identifier: 4,
+              setting_value: 1073741824
+            },
+            # Settings - enable push
+            {
+              identifier: 2,
+              setting_value: 0
+            },
+          ]
+        }
+        expect(described_class.read(data)).to eq(expected)
+      end
     end
 
-    it 'parses successfully' do
-      expected = {
-        frame_length: 18,
-        frame_type: 4,
-        flags: 0,
-        stream_identifier: 0,
-        settings: [
-          # Max concurrent streams
-          {
-            identifier: 3,
-            setting_value: 100
-          },
-          # Initial window size
-          {
-            identifier: 4,
-            setting_value: 1073741824
-          },
-          # Settings - enable push
-          {
-            identifier: 2,
-            setting_value: 0
-          },
-        ]
-      }
-      expect(described_class.read(data)).to eq(expected)
+    context 'when the settings frame has multiple items' do
+      let(:data) do
+        "\x00\x00\x1e\x04\x00\x00\x00\x00\x00\x00\x01\x00\x00\x10\x00\x00" \
+        "\x03\x00\x00\x00\x64\x00\x04\x00\x10\x00\x00\x00\x05\x00\x00\x40" \
+        "\x00\x00\x06\x00\x00\x40\x00".b
+      end
+
+      it 'parses successfully' do
+        expected = {
+          frame_length: 30,
+          frame_type: 4,
+          flags: 0,
+          stream_identifier: 0,
+          settings: [
+            { identifier: 1, setting_value: 4096 },
+            { identifier: 3, setting_value: 100 },
+            { identifier: 4, setting_value: 1048576 },
+            { identifier: 5, setting_value: 16384 },
+            { identifier: 6, setting_value: 16384 }
+          ]
+        }
+        expect(described_class.read(data)).to eq(expected)
+      end
+    end
+
+    context 'when a settings frame is acknowledged' do
+      let(:data) do
+        "\x00\x00\x00\x04\x01\x00\x00\x00\x00".b
+      end
+
+      it 'parses successfully' do
+        expected = {
+          frame_length: 0,
+          frame_type: 4,
+          flags: 1,
+          stream_identifier: 0,
+          settings: [
+          ]
+        }
+        expect(described_class.read(data)).to eq(expected)
+      end
     end
   end
 
@@ -121,6 +166,27 @@ RSpec.describe RubyHttp2::Protocol::Http2 do
       ]
       expect(parsed.headers).to eq(expected_headers)
       expect(parsed.to_binary_s).to eq(data)
+    end
+  end
+
+  describe RubyHttp2::Protocol::Http2::Model::DataFrame do
+    let(:data) do
+      "\x00\x00\x0b\x00\x01\x00\x00\x00\x01\x68\x65\x6c\x6c\x6f\x20\x77" \
+      "\x6f\x72\x6c\x64".b
+    end
+
+    it 'parses successfully' do
+      expected = {
+        frame_length: 11,
+        frame_type: 0,
+        padded: 0,
+        end_stream: 1,
+        stream_identifier:  1,
+        data: "hello world".b,
+        padding: "".b
+      }
+      parsed = described_class.read(data)
+      expect(parsed).to eq(expected)
     end
   end
 end

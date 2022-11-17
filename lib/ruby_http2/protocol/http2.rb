@@ -2,6 +2,7 @@
 
 require 'protocol/hpack'
 autoload :BinData, 'bindata'
+autoload :Logger, 'logger'
 
 module RubyHttp2
   module Protocol
@@ -12,7 +13,7 @@ module RubyHttp2
       private_constant :CONNECTION_PREFACE
 
       # Class dedicated to handle http response headers,
-      # as it's possibe for client/servers to send duplicate headers
+      # as it's possible for client/servers to send duplicate headers
       # with identical names/case sensitivity overlaps etc
       class ResponseHeaders
         # @param [Array<String>] headers
@@ -177,7 +178,7 @@ module RubyHttp2
           #   @return [Integer]
           bit31 :stream_identifier
 
-          array :settings, initial_length: -> { frame_length / 5 } do
+          array :settings, initial_length: -> { frame_length / 6 } do
             # The settings identifier
             # @!attribute [r] identifier
             #   @return [Integer]
@@ -232,7 +233,7 @@ module RubyHttp2
 
           bit1 :reserved3
 
-          # When set, it signifies that the field block is the lsat that the endpoint will
+          # When set, it signifies that the field block is the last that the endpoint will
           # send for the identified stream
           # @!attribute [r] padded
           #   @return [Integer]
@@ -269,7 +270,7 @@ module RubyHttp2
           # Compressed HPACK binary blob
           # @!attribute [r] field_block_fragment
           #   @return [String]
-          string :field_block_fragment, read_length: -> { frame_length }
+          string :field_block_fragment, read_length: -> { frame_length - pad_length }
 
           string :padding, length: :pad_length
 
@@ -287,6 +288,64 @@ module RubyHttp2
 
             self.field_block_fragment = buffer
           end
+        end
+
+        # The Data frame, containing arbitrary variabel length data which can be split up across
+        # multiple frames
+        class DataFrame < BinData::Record
+          endian :big
+
+          hide :reserved1, :reserved2, :reserved3, :reserved4
+
+          # The length of the frame payload. The 9 octets of the frame header
+          # are not included in this length
+          # @!attribute [r] frame_length
+          #   @return [Integer]
+          uint24 :frame_length, initial_value: -> { field_block_fragment.length }
+
+          # The frame type which determines the payload structure;
+          # Unsupported frame types should be ignored
+          # @!attribute [r] frame_type
+          #   @return [Integer]
+          uint8 :frame_type, initial_value: -> { FrameType::DATA }
+
+          #
+          # Flags
+          #
+
+          bit4 :reserved1
+
+          # When set, the pad length field and any padding that it describes is present
+          # @!attribute [r] padded
+          #   @return [Integer]
+          bit1 :padded
+
+          bit2 :reserved2
+
+          # When set, it signifies that the field block is the last that the endpoint will
+          # send for the identified stream
+          # @!attribute [r] padded
+          #   @return [Integer]
+          bit1 :end_stream
+
+          bit1 :reserved4
+
+          # Specifies which stream the frame is associated with
+          # Value 0x0 reserved for the connection as a whole
+          # @!attribute [r] stream_identifier
+          #   @return [Integer]
+          bit31 :stream_identifier
+
+          # The pad length
+          # @!attribute [r] pad_length
+          #   @return [Integer]
+          uint8 :pad_length, onlyif: -> { padded == 1 }
+
+          # @!attribute [r] data
+          #   @return [String]
+          string :data, read_length: -> { frame_length - pad_length }
+
+          string :padding, length: :pad_length
         end
 
         # Window update frame
@@ -362,6 +421,28 @@ module RubyHttp2
 
           string :data, read_length: :frame_length
         end
+
+        # The mapping of supported frame types to their concrete implementation
+        # Any unsupported frame types will be ignored
+        SUPPORTED_FRAME_TYPES = {
+          FrameType::DATA => DataFrame,
+          FrameType::HEADERS => HeadersFrame,
+          FrameType::PRIORITY => nil,
+          FrameType::RST_STREAM => nil,
+          FrameType::SETTINGS => SettingsFrame,
+          FrameType::PUSH_PROMISE => nil,
+          FrameType::PING => nil,
+          FrameType::GOAWAY => GoAwayFrame,
+          FrameType::WINDOW_UPDATE => WindowUpdateFrame,
+          FrameType::CONTINUATION => nil,
+        }
+      end
+
+      # @param [Logger] logger
+      def initialize(
+        logger: Logger.new(nil)
+      )
+        @logger = logger
       end
 
       # @param [Socket] socket
@@ -391,12 +472,14 @@ module RubyHttp2
 
         socket.write_nonblock(settings.to_binary_s)
 
+        get_request_stream_identifier = 1
+
         get_request = Model::HeadersFrame.new(
           priority: 0,
           padded: 0,
           end_headers: 1,
           end_stream: 1,
-          stream_identifier: 1,
+          stream_identifier: get_request_stream_identifier,
         )
 
         # https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1
@@ -409,67 +492,62 @@ module RubyHttp2
         get_request.headers = pseudo_request_headers + headers.map { |k, v| [k.downcase, v] }
         socket.write_nonblock(get_request.to_binary_s)
 
-        nil
+        # Wait until the end of the stream
+        response = parse_response(socket, stream_id: get_request_stream_identifier)
+
+        response
       end
 
       protected
 
-      # Reads a full http  response from the given socket
-      # including status line, headers, and body
+      # @return [Logger] The logger
+      attr_reader :logger
+
+      # Reads a full http response from the given socket for the specified stream_id
+      # this implementation is naive and ignores any messages that do not match
+      # the stream id and doesn't have perfect error handling
       #
       # @param [Socket] socket
-      # @return [RubyHttp2::Protocol::Http1_1::Response]
-      def parse_response(socket)
-        buffer = +''.b
-        line, buffer = read_line(buffer, socket)
+      # @param [Numeric] stream_id
+      # @return [RubyHttp2::Protocol::Http2::Response]
+      def parse_response(socket, stream_id:)
+        end_of_stream = false
+        body = +"".b
+        headers = []
+        until end_of_stream
+          opaque_frame = Model::OpaqueFrame.read(socket)
+          frame_class = Model::SUPPORTED_FRAME_TYPES[opaque_frame.frame_type]
+          if frame_class.nil?
+            logger.error "unsupported frame type #{opaque_frame}"
+            next
+          end
 
-        status, status_text = parse_status(line)
-        headers = ResponseHeaders.new
-        while (header_line, buffer = read_line(buffer, socket))
-          break if header_line.empty?
+          begin
+            frame = frame_class.read(opaque_frame.to_binary_s)
+          rescue => e
+            logger.error "failure #{e}"
+            require 'pry-byebug'; binding.pry;
+            next
+          end
 
-          headers << parse_header(header_line)
-        end
-
-        content_length = headers['Content-Length']
-        body = ''.b
-        if content_length
-          content_length = content_length.to_i
-          # Append left over contents from parsing the header
-          body << buffer
-          body << socket.read(content_length - buffer.length) until body.length >= content_length.to_i
+          if frame.stream_identifier.to_i == stream_id
+            if frame.is_a?(Model::DataFrame)
+              body << frame.data.to_s
+              if frame.end_stream
+                end_of_stream = true
+              end
+            elsif frame.is_a?(Model::HeadersFrame)
+              headers += frame.headers
+            end
+          end
         end
 
         Response.new(
-          status: status,
-          status_text: status_text,
+          status: headers.find { |k, _v| k == ':status' }&.last,
+          status_text: nil,
           body: body,
           headers: headers
         )
-      end
-
-      # @param [String] line
-      # @return [Array<Numeric, String>] Tuple of status and status_text
-      def parse_status(line)
-        match = %r{^HTTP/1.\d+ (?<status>\d+) (?<status_text>.*)$}.match(line)
-        [match[:status].to_i, match[:status_text]]
-      end
-
-      # @param [String] line
-      # @return [Array<String>] Tuple of header name and value
-      def parse_header(line)
-        key, value = line.split(': ', 2)
-        [key, value]
-      end
-
-      # @param [String] buffer the unparsed buffer so far
-      # @param [Socket] socket
-      # @return [Array<String>] The first element is the line, the rest is the remaining buffer
-      def read_line(buffer, socket)
-        buffer << socket.read(1024) until buffer.include?(CRLF)
-
-        line, remaining = buffer.split(CRLF, 2)
-        [line, remaining]
       end
     end
   end

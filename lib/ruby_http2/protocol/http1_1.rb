@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+autoload :Logger, 'logger'
+
 module RubyHttp2
   module Protocol
     class Http1_1
@@ -8,7 +10,7 @@ module RubyHttp2
       private_constant :CRLF
 
       # Class dedicated to handle http response headers,
-      # as it's possibe for client/servers to send duplicate headers
+      # as it's possible for client/servers to send duplicate headers
       # with identical names/case sensitivity overlaps etc
       class ResponseHeaders
         # @param [Array<String>] headers
@@ -54,6 +56,13 @@ module RubyHttp2
         end
       end
 
+      # @param [Logger] logger
+      def initialize(
+        logger: Logger.new(nil)
+      )
+        @logger = logger
+      end
+
       # @param [Socket] socket
       # @param [String] path
       # @param [Array<String>] headers Example: ["Host: example.com"]
@@ -69,6 +78,9 @@ module RubyHttp2
       end
 
       protected
+
+      # @return [Logger] The logger
+      attr_reader :logger
 
       # Reads a full http  response from the given socket
       # including status line, headers, and body

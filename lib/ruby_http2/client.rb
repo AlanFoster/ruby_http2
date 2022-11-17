@@ -39,9 +39,9 @@ module RubyHttp2
       socket = negotiate
 
       if negotiated_protocol == :http1_1
-        Protocol::Http1_1.new.get(@ssl ? ssl_socket : socket, path, headers: headers)
+        Protocol::Http1_1.new(logger: logger).get(@ssl ? ssl_socket : socket, path, headers: headers)
       elsif negotiated_protocol == :http2
-        Protocol::Http2.new.get(ssl_socket, path, headers: headers)
+        Protocol::Http2.new(logger: logger).get(ssl_socket, path, headers: headers)
       else
         raise "unsupported protocol #{negotiated_protocol}"
       end
