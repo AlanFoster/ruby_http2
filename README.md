@@ -22,37 +22,27 @@ Note that in the context of http2, `endpoint` refers to either the client or ser
 ### http 1.1 - port 80
 
 ```bash
-$ ruby examples/example.rb --host example.com --port 80 --header 'Host: example.com'
-Configuration: {
-  "host": "example.com",
-  "port": "80",
-  "protocol": "http1_1",
-  "ssl": false,
-  "verbose": true,
-  "headers": [
-    "Host: example.com"
-  ],
-  "log_level": 1
-}
-I, [2022-11-15T00:10:51.320248 #77698]  INFO -- : connection opened
-#<RubyHttp2::Protocol::Http1_1::Response:0x00007f9d70159f68
+$ ruby examples/example.rb --url http://example.com --header 'Host: example.com' --ipv4 --verbose
+I, [2022-11-17T19:48:56.568477 #123]  INFO -- : connecting to #<Addrinfo: 93.184.216.34:80 TCP (example.com)>
+#<RubyHttp2::Protocol::Http1_1::Response:0x00007f6e8f359738
  @body=
   "<!doctype html>\n" +
-  "... etc ..." +
-  "</body>\n" +
+  "<html>\n" +
+  "<head>\n" +
+  "    <title>Example Domain</title>\n" +
+  "    ... etc...\n",
   "</html>\n",
  @headers=
-  #<RubyHttp2::Protocol::Http1_1::ResponseHeaders:0x00007f9d70149960
+  #<RubyHttp2::Protocol::Http1_1::ResponseHeaders:0x00007f6e8f35cf78
    @headers=
-    [["Accept-Ranges", "bytes"],
-     ["Age", "378075"],
+    [["Age", "478542"],
      ["Cache-Control", "max-age=604800"],
      ["Content-Type", "text/html; charset=UTF-8"],
-     ["Date", "Tue, 15 Nov 2022 00:10:51 GMT"],
+     ["Date", "Thu, 17 Nov 2022 19:47:04 GMT"],
      ["Etag", "\"3147526947+ident\""],
-     ["Expires", "Tue, 22 Nov 2022 00:10:51 GMT"],
+     ["Expires", "Thu, 24 Nov 2022 19:47:04 GMT"],
      ["Last-Modified", "Thu, 17 Oct 2019 07:18:26 GMT"],
-     ["Server", "ECS (dcb/7EC9)"],
+     ["Server", "ECS (dcb/7ECB)"],
      ["Vary", "Accept-Encoding"],
      ["X-Cache", "HIT"],
      ["Content-Length", "1256"]]>,
@@ -63,20 +53,10 @@ I, [2022-11-15T00:10:51.320248 #77698]  INFO -- : connection opened
 ### http 1.1 - ssl - port 443
 
 ```bash
-$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --header 'Host: example.com' --ssl
-Configuration: {
-  "host": "example.com",
-  "port": "443",
-  "protocol": "http1_1",
-  "ssl": true,
-  "verbose": true,
-  "path": "/",
-  "headers": [
-    "Host: example.com"
-  ],
-  "sslkeylogfile": "/app/sslkeylogfile",
-  "log_level": 1
-}
+$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --url https://example.com --header 'Host: example.com' --ipv6
+I, [2022-11-17T20:14:39.531579 #21155]  INFO -- : connecting to #<Addrinfo: [2606:2800:220:1:248:1893:25c8:1946]:443 TCP (example.com)>
+I, [2022-11-17T20:14:39.634258 #21155]  INFO -- : connection opened
+I, [2022-11-17T20:14:39.879707 #21155]  INFO -- : server negotiated http/1.1
 I, [2022-11-15T17:39:39.949583 #81]  INFO -- : connecting to #<Addrinfo: 93.184.216.34:443 TCP (example.com)>
 #<RubyHttp2::Protocol::Http1_1::Response:0x00007f64264d4130
  @body=
@@ -108,7 +88,33 @@ I, [2022-11-15T17:39:39.949583 #81]  INFO -- : connecting to #<Addrinfo: 93.184.
 When the `--http2` option is specified, the SSL alpn will be set to `h2`. To gracefully fall back to `http1.1` support - the `--http1.1` flag must also be specified
 
 ```bash
-$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --ssl --http2
+$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --url https://example.com --http2 --ipv6 --verbose
+I, [2022-11-17T22:00:54.197283 #21680]  INFO -- : connecting to #<Addrinfo: [2606:2800:220:1:248:1893:25c8:1946]:443 TCP (example.com)>
+I, [2022-11-17T22:00:54.296489 #21680]  INFO -- : connection opened
+I, [2022-11-17T22:00:54.328283 #21680]  INFO -- : configuring tls for http2
+I, [2022-11-17T22:00:54.534100 #21680]  INFO -- : server negotiated h2
+#<RubyHttp2::Protocol::Http2::Response:0x00007f9a2999b518
+ @body=
+  "<!doctype html>\n" +
+  "<html>\n" +
+    "... etc ..." +
+  "</body>\n" +
+  "</html>\n",
+ @headers=
+  [[":status", "200"],
+   ["age", "534348"],
+   ["cache-control", "max-age=604800"],
+   ["content-type", "text/html; charset=UTF-8"],
+   ["date", "Thu, 17 Nov 2022 22:00:54 GMT"],
+   ["etag", "\"3147526947+ident\""],
+   ["expires", "Thu, 24 Nov 2022 22:00:54 GMT"],
+   ["last-modified", "Thu, 17 Oct 2019 07:18:26 GMT"],
+   ["server", "ECS (dcb/7F7F)"],
+   ["vary", "Accept-Encoding"],
+   ["x-cache", "HIT"],
+   ["content-length", "1256"]],
+ @status="200",
+ @status_text=nil>
 ```
 
 ## ipv4 / ipv6
@@ -126,7 +132,7 @@ If running with Ruby 3.2 - this tool honors curl's `SSLKEYLOGFILE` semantics, wh
 $ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb # ... options ...
 ```
 
-This will create a new `sslkeylogfile` with data such as `CLIENT_RANDOM` in the nss file format 
+This will create a new `sslkeylogfile` with data such as `CLIENT_RANDOM` in the nss file format
 
 Additional details:
 - nss file format - https://firefox-source-docs.mozilla.org/security/nss/legacy/key_log_format/index.html

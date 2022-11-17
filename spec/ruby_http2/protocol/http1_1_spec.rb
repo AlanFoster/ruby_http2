@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'rspec'
+require 'addressable'
 
 RSpec.describe RubyHttp2::Protocol::Http1_1 do
   describe '#get' do
@@ -8,6 +9,7 @@ RSpec.describe RubyHttp2::Protocol::Http1_1 do
     let(:mock_socket) do
       MockSocket.new response
     end
+    let(:foo_url) { ::Addressable::URI.parse('/foo') }
 
     context 'when the response is a success with Content-Type' do
       let(:response) do
@@ -20,14 +22,14 @@ RSpec.describe RubyHttp2::Protocol::Http1_1 do
       end
 
       it 'writes a successful http request' do
-        subject.get(mock_socket, '/foo', headers: [])
+        subject.get(mock_socket, foo_url, headers: [])
         expected_request = "GET /foo HTTP/1.1\r\n\r\n"
 
         expect(mock_socket.write_data).to eq expected_request
       end
 
       it 'returns a successful response object' do
-        response = subject.get(mock_socket, '/foo', headers: [])
+        response = subject.get(mock_socket, foo_url, headers: [])
         expected_headers = [
           %w[Server MockServer/1.2.3],
           ['Content-Type', 'text/html; charset=utf-8'],
@@ -51,14 +53,14 @@ RSpec.describe RubyHttp2::Protocol::Http1_1 do
       end
 
       it 'writes a successful http request' do
-        subject.get(mock_socket, '/foo', headers: [%w[Host example.com]])
+        subject.get(mock_socket, foo_url, headers: [%w[Host example.com]])
         expected_request = "GET /foo HTTP/1.1\r\nHost: example.com\r\n\r\n"
 
         expect(mock_socket.write_data).to eq expected_request
       end
 
       it 'returns a successful response object' do
-        response = subject.get(mock_socket, '/foo', headers: [])
+        response = subject.get(mock_socket, foo_url, headers: [])
         expected_headers = [
           %w[Server MockServer/1.2.3],
           ['Content-Type', 'text/html; charset=utf-8'],

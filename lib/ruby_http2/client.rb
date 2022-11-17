@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'addressable'
 autoload :Socket, 'socket'
 autoload :Addrinfo, 'socket'
 autoload :Logger, 'logger'
@@ -7,8 +8,7 @@ autoload :OpenSSL, 'openssl'
 
 module RubyHttp2
   class Client
-    # @param [String] host
-    # @param [Numeric] port
+    # @param [String] url
     # @param [Array<Symbol>] protocols The protocols to negotiate, i.e. http1_1 or http2
     # @param [Boolean] ssl
     # @param [Socket] socket
@@ -17,17 +17,15 @@ module RubyHttp2
     # @param [Logger] logger
     # @return [RubyHttp2::Client]
     def initialize(
-      host: nil,
-      port: nil,
+      url:,
       protocols: nil,
-      ssl: false,
+      ssl: nil,
       socket: nil,
       resolve_hostname_preference: nil,
       sslkeylogfile: nil,
       logger: Logger.new(nil)
     )
-      @host = host
-      @port = port
+      @url = ::Addressable::URI.parse(url)
       @protocols = protocols
       @ssl = ssl
       @socket = socket
@@ -36,15 +34,15 @@ module RubyHttp2
       @logger = logger
     end
 
-    # @param [String] path The path, i.e /foo.html
+    # @param [::Addressable::URL] url The url to request
     # @param [Array<String>] headers The HTTP headers to send
-    def get(path, headers: [])
+    def get(url, headers: [])
       socket = negotiate
 
       if negotiated_protocol == :http1_1
-        Protocol::Http1_1.new(logger: logger).get(@ssl ? ssl_socket : socket, path, headers: headers)
+        Protocol::Http1_1.new(logger: logger).get(ssl? ? ssl_socket : socket, url, headers: headers)
       elsif negotiated_protocol == :http2
-        Protocol::Http2.new(logger: logger).get(ssl_socket, path, headers: headers)
+        Protocol::Http2.new(logger: logger).get(ssl? ? ssl_socket : socket, url, headers: headers)
       else
         raise "unsupported protocol #{negotiated_protocol}"
       end
@@ -61,7 +59,7 @@ module RubyHttp2
     def negotiate
       socket = self.socket
 
-      if @ssl
+      if ssl?
         @ssl_socket = negotiate_ssl(socket, protocols: @protocols, sslkeylogfile: @sslkeylogfile)
       end
 
@@ -69,16 +67,20 @@ module RubyHttp2
     end
 
     def socket
-      @socket ||= open_socket(
-        host: @host,
-        port: @port,
-      )
+      @socket ||= open_socket(url: @url)
     end
 
-    # @param [String] host
-    # @param [Numeric] port
+    # @param [Addressable::URI] url
     # @return [Socket] socket
-    def open_socket(host:, port:)
+    def open_socket(url:)
+      host = url.host
+      port = url.port ||
+        (url.scheme == 'http' && 80) ||
+        (url.scheme == 'https' && 443)
+      if port.nil?
+        raise 'Port required'
+      end
+
       # resolve the host, and choose the first address.
       resolve_address_family = {
         :ipv4 => ::Socket::AF_INET,
@@ -92,7 +94,7 @@ module RubyHttp2
       logger.info("connecting to #{resolved_address.inspect}")
       # afamily will resolve to ::Socket::AF_INET/::Socket::AF_INET6
       socket = Socket.new(resolved_address.afamily, ::Socket::SOCK_STREAM, 0)
-      socket_addr = Socket.sockaddr_in(port, host)
+      socket_addr = Socket.sockaddr_in(port, resolved_address.ip_address)
 
       # Connect non-blocking, but block synchronously for a connection
       begin
@@ -153,6 +155,8 @@ module RubyHttp2
         end
       end
       ssl_socket = OpenSSL::SSL::SSLSocket.new(socket, ssl_context)
+      # set the hostname for SSL SNI (Server Name Indication)
+      ssl_socket.hostname = @url.hostname
       ssl_socket.sync_close = true
 
       ssl_socket.connect
@@ -174,6 +178,12 @@ module RubyHttp2
       else
         ssl_socket.alpn_protocol.to_sym
       end
+    end
+
+    def ssl?
+      return @ssl unless @ssl.nil?
+
+      @url.scheme == 'https'
     end
   end
 end

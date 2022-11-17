@@ -64,15 +64,20 @@ module RubyHttp2
       end
 
       # @param [Socket] socket
-      # @param [String] path
+      # @param [::Addressable::URL] url The url to request
       # @param [Array<String>] headers Example: ["Host: example.com"]
       # @return [Response] The http response
-      def get(socket, path, headers: [])
-        socket.write("GET #{path} HTTP/1.1#{CRLF}")
+      def get(socket, url, headers: [])
+        request = +"".b
+
+        request << "GET #{url.normalized_path} HTTP/1.1#{CRLF}"
         headers.each do |key, value|
-          socket.write("#{key}: #{value}#{CRLF}")
+          request << "#{key}: #{value}#{CRLF}"
         end
-        socket.write(CRLF)
+        request << CRLF
+
+        logger.debug("request: #{request.inspect}")
+        socket.write(request)
 
         parse_response(socket)
       end

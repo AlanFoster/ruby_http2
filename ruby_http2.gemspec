@@ -23,6 +23,12 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
   spec.metadata['rubygems_mfa_required'] = 'true'
 
+  # Required for parsing http2 binary datastructures
   spec.add_runtime_dependency 'bindata'
+  # Required for compressing the http2 header frame requests
   spec.add_runtime_dependency 'protocol-hpack'
+  # Required for parsing addresses - the parser is more flexible than URI.parse, i.e.
+  # `Addressable::URI.parse('http://user:p4@@w0rd@example.com').password` => p4@@w0rd
+  # `::URI.parse('http://user:p4@@w0rd@example.com').password` => (URI::InvalidURIError)
+  spec.add_runtime_dependency 'addressable'
 end

@@ -2,12 +2,15 @@ PATH
   remote: .
   specs:
     ruby_http2 (0.1.0)
+      addressable
       bindata
       protocol-hpack
 
 GEM
   remote: https://rubygems.org/
   specs:
+    addressable (2.8.0)
+      public_suffix (>= 2.0.2, < 5.0)
     benchmark-ips (2.10.0)
     bindata (2.4.14)
     byebug (11.1.3)
@@ -21,6 +24,7 @@ GEM
     pry-byebug (3.8.0)
       byebug (~> 11.0)
       pry (~> 0.10)
+    public_suffix (4.0.6)
     rake (12.3.3)
     rspec (3.12.0)
       rspec-core (~> 3.12.0)

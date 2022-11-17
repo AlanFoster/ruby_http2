@@ -6,6 +6,7 @@ require 'optparse'
 require 'ruby_http2'
 require 'json'
 require 'logger'
+require 'addressable'
 
 protocols = %i[
   http1_1
@@ -13,12 +14,9 @@ protocols = %i[
 ]
 
 options = {
-  host: nil,
-  port: nil,
   protocol: nil,
-  ssl: false,
+  ssl: nil,
   verbose: true,
-  path: '/',
   headers: [],
   # Whether to resolve addresses to ipv4 or ipv6
   resolve_hostname_preference: nil,
@@ -33,13 +31,9 @@ options_parser = OptionParser.new do |opts|
     return print(opts.help)
   end
 
-  opts.on('--host=HOST', 'The target host') do |host|
-    options[:host] = host
-  end
-
-  opts.on('--port=PORT', 'The target port') do |port|
-    options[:port] = port
-    options[:ssl] = port == 443
+  opts.on('--url=URL', 'The URL to use') do |url|
+    url = Addressable::URI.parse(url)
+    options[:url] = url
   end
 
   opts.on('--[no-]ssl', 'Use ssl') do |ssl|
@@ -48,10 +42,6 @@ options_parser = OptionParser.new do |opts|
 
   opts.on('--verbose', 'Enable verbose logging') do |verbose|
     options[:verbose] = verbose
-  end
-
-  opts.on('--path=PATH', 'The http path') do |path|
-    options[:path] = path
   end
 
   protocols.each do |protocol|
@@ -87,19 +77,19 @@ options_parser.parse!
 # default the protocol to the first supported protocol if not user-specified
 options[:protocols] ||= [protocols.first]
 
-puts "Configuration: #{JSON.pretty_generate(options)}"
-
-if options[:host].nil? ||  options[:port].nil?
-  puts 'Host required and port required'
+if options[:url].nil?
+  puts 'URL required'
   puts options_parser.help
   exit 1
 end
 
 logger = options[:verbose] ? Logger.new($stdout) : Logger.new(nil)
 logger.level = options[:log_level]
+
+logger.debug "Configuration: #{JSON.pretty_generate(options)}"
+
 client = RubyHttp2::Client.new(
-  host: options[:host],
-  port: options[:port],
+  url: options[:url],
   protocols: options[:protocols],
   ssl: options[:ssl],
   logger: logger,
@@ -107,4 +97,7 @@ client = RubyHttp2::Client.new(
   sslkeylogfile: options[:sslkeylogfile]
 )
 
-pp client.get(options[:path], headers: options[:headers])
+pp client.get(
+  options[:url],
+  headers: options[:headers]
+)

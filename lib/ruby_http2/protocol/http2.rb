@@ -446,10 +446,10 @@ module RubyHttp2
       end
 
       # @param [Socket] socket
-      # @param [String] path
+      # @param [::Addressable::URL] url
       # @param [Array<String>] headers Example: ["Host: example.com"]
       # @return [Response] The http response
-      def get(socket, path, headers: [])
+      def get(socket, url, headers: [])
         socket.write_nonblock(CONNECTION_PREFACE)
 
         settings = Model::SettingsFrame.new(
@@ -485,9 +485,9 @@ module RubyHttp2
         # https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1
         pseudo_request_headers = [
           %w[:method GET],
-          [":path", path],
-          %w[:scheme https],
-          %w[:authority example.com],
+          [":path", url.normalized_path],
+          [":scheme", url.scheme],
+          [":authority", url.host],
         ]
         get_request.headers = pseudo_request_headers + headers.map { |k, v| [k.downcase, v] }
         socket.write_nonblock(get_request.to_binary_s)
@@ -526,7 +526,6 @@ module RubyHttp2
             frame = frame_class.read(opaque_frame.to_binary_s)
           rescue => e
             logger.error "failure #{e}"
-            require 'pry-byebug'; binding.pry;
             next
           end
 
