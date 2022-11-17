@@ -4,22 +4,29 @@ Simple http/http2 client written in Ruby to learn more about HTTP protocols.
 Definitely not production ready or feature complete.
 
 Implemented with the following references:
-- http1.1 - https://httpwg.org/specs/rfc9110.html
-- http2 - https://www.rfc-editor.org/rfc/rfc9113.html
-- hpack overview for header compression - https://blog.cloudflare.com/hpack-the-silent-killer-feature-of-http-2/
-- hpack header compression - https://www.rfc-editor.org/rfc/rfc7541#appendix-B
+- [http1.1 rfc9110](https://httpwg.org/specs/rfc9110.html)
+- [http2 rfc9113](https://www.rfc-editor.org/rfc/rfc9113.html)
+- [Cloudflare hpack overview for http2 header compression](https://blog.cloudflare.com/hpack-the-silent-killer-feature-of-http-2/)
+- [hpack header compression rfc](https://www.rfc-editor.org/rfc/rfc7541) 
 
 Note that in the context of http2, `endpoint` refers to either the client or server of the connection as per the spec.
 
 ## Usage
 
+Either set up the gem locally with:
+
 - First `git clone` the repository
-- Either Install Ruby - via [rvm](https://rvm.io/) or similar, and run `bundle`
-- Use docker: `docker-compose run service`
+- Install Ruby - via [rvm](https://rvm.io/) or similar
+- Run `bundle` to install the required dependencies
+- Run the examples shown below
+  
+Or use docker:
+- `docker-compose run service`
+- Run the examples shown below
 
 ## Examples
 
-### http 1.1 - port 80
+### Request http 1.1 - port 80
 
 ```bash
 $ ruby examples/example.rb --url http://example.com --header 'Host: example.com' --ipv4 --verbose
@@ -50,7 +57,7 @@ I, [2022-11-17T19:48:56.568477 #123]  INFO -- : connecting to #<Addrinfo: 93.184
  @status_text="OK">
 ```
 
-### http 1.1 - ssl - port 443
+### Request http 1.1 - ssl - port 443
 
 ```bash
 $ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --url https://example.com --header 'Host: example.com' --ipv6
@@ -83,9 +90,9 @@ I, [2022-11-15T17:39:39.949583 #81]  INFO -- : connecting to #<Addrinfo: 93.184.
  @status_text="OK">
 ```
 
-### http 2 - ssl - port 443
+### Request http 2 - ssl - port 443
 
-When the `--http2` option is specified, the SSL alpn will be set to `h2`. To gracefully fall back to `http1.1` support - the `--http1.1` flag must also be specified
+When the `--http2` option is specified, the SSL alpn will be set to `h2`:
 
 ```bash
 $ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --url https://example.com --http2 --ipv6 --verbose
@@ -117,6 +124,8 @@ I, [2022-11-17T22:00:54.534100 #21680]  INFO -- : server negotiated h2
  @status_text=nil>
 ```
 
+To gracefully fall back to `http1.1` support, the `--http1.1` flag must also be specified
+
 ## ipv4 / ipv6
 
 When resolving hostnames you can specify the address family to preference:
@@ -126,7 +135,8 @@ When resolving hostnames you can specify the address family to preference:
 
 ## SSLKEYLOGFILE
 
-If running with Ruby 3.2 - this tool honors curl's `SSLKEYLOGFILE` semantics, which allows for dissecting HTTPS/tls traffic with wireshark etc:
+This tool honors curl's `SSLKEYLOGFILE` semantics, which allows for dissecting HTTPS/tls traffic with wireshark etc.
+Ruby 3.2 is required for this functionality:
 
 ```bash
 $ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb # ... options ...
