@@ -24,4 +24,5 @@ Gem::Specification.new do |spec|
   spec.metadata['rubygems_mfa_required'] = 'true'
 
   spec.add_runtime_dependency 'bindata'
+  spec.add_runtime_dependency 'protocol-hpack'
 end

@@ -69,7 +69,7 @@ options_parser = OptionParser.new do |opts|
 
 
   opts.on('--header=HEADER', 'An http header to send, i.e. "Host: example.com"') do |header|
-    options[:headers] += [header]
+    options[:headers] << header.split(': ', 2)
   end
 end
 

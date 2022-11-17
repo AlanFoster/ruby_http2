@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'protocol/hpack'
 autoload :BinData, 'bindata'
 
 module RubyHttp2
@@ -107,6 +108,32 @@ module RubyHttp2
         class GoAwayFrame < BinData::Record
           endian :big
 
+          # The length of the frame payload. The 9 octets of the frame header
+          # are not included in this length
+          # @!attribute [r] frame_length
+          #   @return [Integer]
+          uint24 :frame_length, initial_value: -> { settings.to_binary_s.length }
+
+          # The frame type which determines the payload structure;
+          # Unsupported frame types should be ignored
+          # @!attribute [r] frame_type
+          #   @return [Integer]
+          uint8 :frame_type, initial_value: -> { FrameType::SETTINGS }
+
+          # Boolean bit flag, the semantics depend on the frame type
+          # @!attribute [r] flags
+          #   @return [Integer]
+          uint8 :flags
+
+          bit1 :reserved1
+          hide :reserved1
+
+          # Specifies which stream the frame is associated with
+          # Value 0x0 reserved for the connection as a whole
+          # @!attribute [r] stream_identifier
+          #   @return [Integer]
+          bit31 :stream_identifier
+
           # The error code
           # @!attribute [r] error_code
           #   @return [Integer]
@@ -124,6 +151,32 @@ module RubyHttp2
         class SettingsFrame < BinData::Record
           endian :big
 
+          # The length of the frame payload. The 9 octets of the frame header
+          # are not included in this length
+          # @!attribute [r] frame_length
+          #   @return [Integer]
+          uint24 :frame_length, initial_value: -> { settings.to_binary_s.length }
+
+          # The frame type which determines the payload structure;
+          # Unsupported frame types should be ignored
+          # @!attribute [r] frame_type
+          #   @return [Integer]
+          uint8 :frame_type, initial_value: -> { FrameType::SETTINGS }
+
+          # Boolean bit flag, the semantics depend on the frame type
+          # @!attribute [r] flags
+          #   @return [Integer]
+          uint8 :flags
+
+          bit1 :reserved
+          hide :reserved
+
+          # Specifies which stream the frame is associated with
+          # Value 0x0 reserved for the connection as a whole
+          # @!attribute [r] stream_identifier
+          #   @return [Integer]
+          bit31 :stream_identifier
+
           array :settings, initial_length: -> { frame_length / 5 } do
             # The settings identifier
             # @!attribute [r] identifier
@@ -137,12 +190,137 @@ module RubyHttp2
           end
         end
 
+        # The headers frame, which can additionally contain a field block segment
+        class HeadersFrame < BinData::Record
+          endian :big
+
+          hide :reserved1, :reserved2, :reserved3, :reserved4
+
+          # The length of the frame payload. The 9 octets of the frame header
+          # are not included in this length
+          # @!attribute [r] frame_length
+          #   @return [Integer]
+          uint24 :frame_length, initial_value: -> { field_block_fragment.length }
+
+          # The frame type which determines the payload structure;
+          # Unsupported frame types should be ignored
+          # @!attribute [r] frame_type
+          #   @return [Integer]
+          uint8 :frame_type, initial_value: -> { FrameType::HEADERS }
+
+          #
+          # Flags
+          #
+
+          bit2 :reserved1
+
+          # When set, the exclusive/stream dependency/weight fields are present
+          # @!attribute [r] priority
+          #   @return [Integer]
+          bit1 :priority
+          bit1 :reserved2
+
+          # When set, the pad length field and any padding that it describes is present
+          # @!attribute [r] padded
+          #   @return [Integer]
+          bit1 :padded
+
+          # When set, this frame is not followed any continuation frames
+          # @!attribute [r] padded
+          #   @return [Integer]
+          bit1 :end_headers
+
+          bit1 :reserved3
+
+          # When set, it signifies that the field block is the lsat that the endpoint will
+          # send for the identified stream
+          # @!attribute [r] padded
+          #   @return [Integer]
+          bit1 :end_stream
+
+          bit1 :reserved4
+
+          # Specifies which stream the frame is associated with
+          # Value 0x0 reserved for the connection as a whole
+          # @!attribute [r] stream_identifier
+          #   @return [Integer]
+          bit31 :stream_identifier
+
+          # The pad length
+          # @!attribute [r] pad_length
+          #   @return [Integer]
+          uint8 :pad_length, onlyif: -> { padded == 1 }
+
+          # Deprecated; Do not use
+          # @!attribute [r] exclusive
+          #   @return [Integer]
+          bit1 :exclusive, onlyif: -> { priority == 1 }
+
+          # If priority bit is set, this is a stream identifier
+          # @!attribute [r] stream_dependency
+          #   @return [Integer]
+          bit31 :stream_dependency, onlyif: -> { priority == 1 }
+
+          # If priority bit is set, this is the weight
+          # @!attribute [r] weight
+          #   @return [Integer]
+          uint8 :weight, onlyif: -> { priority == 1 }
+
+          # Compressed HPACK binary blob
+          # @!attribute [r] field_block_fragment
+          #   @return [String]
+          string :field_block_fragment, read_length: -> { frame_length }
+
+          string :padding, length: :pad_length
+
+          # @return [Array<Array<String>>] The http headers, for example `[['content-length', '5']]`
+          def headers
+            decompressor = ::Protocol::HPACK::Decompressor.new(self.field_block_fragment)
+            decompressor.decode
+          end
+
+          # @param [Array<Array<String>>] headers The http headers, for example `[['content-length', '5']]`
+          def headers=(headers)
+            buffer = String.new.b
+            compressor = ::Protocol::HPACK::Compressor.new(buffer)
+            compressor.encode(headers)
+
+            self.field_block_fragment = buffer
+          end
+        end
+
         # Window update frame
         class WindowUpdateFrame < BinData::Record
           endian :big
 
-          bit1 :reserved
-          hide :reserved
+          # The length of the frame payload. The 9 octets of the frame header
+          # are not included in this length
+          # @!attribute [r] frame_length
+          #   @return [Integer]
+          uint24 :frame_length, assert_value: -> { 4 }
+
+          # The frame type which determines the payload structure;
+          # Unsupported frame types should be ignored
+          # @!attribute [r] frame_type
+          #   @return [Integer]
+          uint8 :frame_type, initial_value: -> { FrameType::WINDOW_UPDATE }
+
+          # Boolean bit flag, the semantics depend on the frame type
+          # @!attribute [r] flags
+          #   @return [Integer]
+          uint8 :flags
+
+          bit1 :reserved1
+          hide :reserved1
+
+          # Specifies which stream the frame is associated with
+          # Value 0x0 reserved for the connection as a whole
+          # @!attribute [r] stream_identifier
+          #   @return [Integer]
+          bit31 :stream_identifier
+
+          bit1 :reserved2
+          hide :reserved2
 
           # The window size increment
           # @!attribute [r] window_size_increment
@@ -150,15 +328,10 @@ module RubyHttp2
           bit31 :window_size_increment
         end
 
-        # Placeholder for capturing an unknown http2 frame
-        class UnknownFrame < BinData::Record
-          endian :big
-
-          string :data, length: -> { frame_length }
-        end
-
-        # The http2 frame sent to/from the client/server
-        class Frame < BinData::Record
+        # An opaque http2 frame sent to/from the client/server; There is a dedicated frame
+        # object for each frame which will be reparsed once a frame type is successfully
+        # identified.s
+        class OpaqueFrame < BinData::Record
           endian :big
 
           # The length of the frame payload. The 9 octets of the frame header
@@ -187,17 +360,7 @@ module RubyHttp2
           #   @return [Integer]
           bit31 :stream_identifier
 
-          choice :payload, selection: -> { frame_type } do
-            settings_frame FrameType::SETTINGS,
-                           frame_length: -> { frame_length }
-
-            window_update_frame FrameType::WINDOW_UPDATE,
-                                frame_length: -> { frame_length }
-
-            # From the spec - unhandled frame types should be consumed and ignored
-            unknown_frame :default,
-                          frame_length: -> { frame_length }
-          end
+          string :data, read_length: :frame_length
         end
       end
 
@@ -208,29 +371,43 @@ module RubyHttp2
       def get(socket, path, headers: [])
         socket.write_nonblock(CONNECTION_PREFACE)
 
-        settings = Model::Frame.new(
-          frame_type: Model::FrameType::SETTINGS,
-          flags: 0,
-          payload: Model::SettingsFrame.new(
-            settings: [
-              {
-                identifier: Model::SettingCode::MAX_CONCURRENT_STREAMS,
-                setting_value: 100
-              },
-              {
-                identifier: Model::SettingCode::INITIAL_WINDOW_SIZE,
-                setting_value: 1073741824
-              },
-              {
-                identifier: Model::SettingCode::ENABLE_PUSH,
-                # A server MUST NOT send a PUSH_PROMISE frame if it receives this parameter set to a value of 0
-                setting_value: 0
-              },
-            ]
-          )
+        settings = Model::SettingsFrame.new(
+          settings: [
+            {
+              identifier: Model::SettingCode::MAX_CONCURRENT_STREAMS,
+              setting_value: 100
+            },
+            {
+              identifier: Model::SettingCode::INITIAL_WINDOW_SIZE,
+              setting_value: 1073741824
+            },
+            {
+              identifier: Model::SettingCode::ENABLE_PUSH,
+              # A server MUST NOT send a PUSH_PROMISE frame if it receives this parameter set to a value of 0
+              setting_value: 0
+            },
+          ]
         )
 
         socket.write_nonblock(settings.to_binary_s)
+
+        get_request = Model::HeadersFrame.new(
+          priority: 0,
+          padded: 0,
+          end_headers: 1,
+          end_stream: 1,
+          stream_identifier: 1,
+        )
+
+        # https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1
+        pseudo_request_headers = [
+          %w[:method GET],
+          [":path", path],
+          %w[:scheme https],
+          %w[:authority example.com],
+        ]
+        get_request.headers = pseudo_request_headers + headers.map { |k, v| [k.downcase, v] }
+        socket.write_nonblock(get_request.to_binary_s)
 
         nil
       end

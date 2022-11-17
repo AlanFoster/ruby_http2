@@ -3,9 +3,13 @@
 Simple http/http2 client written in Ruby to learn more about HTTP protocols.
 Definitely not production ready or feature complete.
 
-Implemented following the spec:
+Implemented with the following references:
 - http1.1 - https://httpwg.org/specs/rfc9110.html
 - http2 - https://www.rfc-editor.org/rfc/rfc9113.html
+- hpack overview for header compression - https://blog.cloudflare.com/hpack-the-silent-killer-feature-of-http-2/
+- hpack header compression - https://www.rfc-editor.org/rfc/rfc7541#appendix-B
+
+Note that in the context of http2, `endpoint` refers to either the client or server of the connection as per the spec.
 
 ## Usage
 
@@ -104,7 +108,7 @@ I, [2022-11-15T17:39:39.949583 #81]  INFO -- : connecting to #<Addrinfo: 93.184.
 When the `--http2` option is specified, the SSL alpn will be set to `h2`. To gracefully fall back to `http1.1` support - the `--http1.1` flag must also be specified
 
 ```bash
-$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --header 'Host: example.com' --ssl --http2
+$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --ssl --http2
 ```
 
 ## SSLKEYLOGFILE

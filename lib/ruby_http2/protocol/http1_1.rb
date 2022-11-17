@@ -60,8 +60,8 @@ module RubyHttp2
       # @return [Response] The http response
       def get(socket, path, headers: [])
         socket.write("GET #{path} HTTP/1.1#{CRLF}")
-        headers.each do |header|
-          socket.write("#{header}#{CRLF}")
+        headers.each do |key, value|
+          socket.write("#{key}: #{value}#{CRLF}")
         end
         socket.write(CRLF)
 
