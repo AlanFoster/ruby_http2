@@ -20,6 +20,8 @@ options = {
   verbose: true,
   path: '/',
   headers: [],
+  # Whether to resolve addresses to ipv4 or ipv6
+  resolve_hostname_preference: nil,
   sslkeylogfile: ENV.fetch('SSLKEYLOGFILE', nil),
   log_level: Logger::Severity::INFO
 }
@@ -67,6 +69,13 @@ options_parser = OptionParser.new do |opts|
     options[:sslkeylogfile] = sslkeylogfile
   end
 
+  opts.on('-4', '--ipv4', 'Resolve names to IPv4 addresses') do
+    options[:resolve_hostname_preference] = :ipv4
+  end
+
+  opts.on('-6', '--ipv6', 'Resolve names to IPv6 addresses') do
+    options[:resolve_hostname_preference] = :ipv6
+  end
 
   opts.on('--header=HEADER', 'An http header to send, i.e. "Host: example.com"') do |header|
     options[:headers] << header.split(': ', 2)
@@ -94,6 +103,7 @@ client = RubyHttp2::Client.new(
   protocols: options[:protocols],
   ssl: options[:ssl],
   logger: logger,
+  resolve_hostname_preference: options[:resolve_hostname_preference],
   sslkeylogfile: options[:sslkeylogfile]
 )
 

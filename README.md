@@ -111,6 +111,13 @@ When the `--http2` option is specified, the SSL alpn will be set to `h2`. To gra
 $ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --ssl --http2
 ```
 
+## ipv4 / ipv6
+
+When resolving hostnames you can specify the address family to preference:
+
+- `-4` / `--ipv4` - Resolve names to IPv4 addresses
+- `-6` / `--ipv6` - Resolve names to IPv6 addresses
+
 ## SSLKEYLOGFILE
 
 If running with Ruby 3.2 - this tool honors curl's `SSLKEYLOGFILE` semantics, which allows for dissecting HTTPS/tls traffic with wireshark etc:

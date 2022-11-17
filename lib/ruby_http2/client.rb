@@ -12,6 +12,7 @@ module RubyHttp2
     # @param [Array<Symbol>] protocols The protocols to negotiate, i.e. http1_1 or http2
     # @param [Boolean] ssl
     # @param [Socket] socket
+    # @param [Symbol,nil] resolve_hostname_preference When :ipv4 or :ipv6 the host will explicitly resolve to an ipv4 or ipv6 address as requested
     # @param [String,nil] sslkeylogfile The SSLKEYLOGFILE path
     # @param [Logger] logger
     # @return [RubyHttp2::Client]
@@ -21,6 +22,7 @@ module RubyHttp2
       protocols: nil,
       ssl: false,
       socket: nil,
+      resolve_hostname_preference: nil,
       sslkeylogfile: nil,
       logger: Logger.new(nil)
     )
@@ -29,6 +31,7 @@ module RubyHttp2
       @protocols = protocols
       @ssl = ssl
       @socket = socket
+      @resolve_hostname_preference = resolve_hostname_preference
       @sslkeylogfile = sslkeylogfile
       @logger = logger
     end
@@ -77,8 +80,12 @@ module RubyHttp2
     # @return [Socket] socket
     def open_socket(host:, port:)
       # resolve the host, and choose the first address.
-      # In the future this loookup could be user influenced, i.e. AF_INET/AF_INET6
-      resolved_addresses = Addrinfo.getaddrinfo(host, port, 0, ::Socket::SOCK_STREAM)
+      resolve_address_family = {
+        :ipv4 => ::Socket::AF_INET,
+        :ipv6 => ::Socket::AF_INET6,
+        nil => 0
+      }.fetch(@resolve_hostname_preference)
+      resolved_addresses = Addrinfo.getaddrinfo(host, port, resolve_address_family, ::Socket::SOCK_STREAM)
       raise "Could not resolve host: #{host}" if resolved_addresses.empty?
 
       resolved_address = resolved_addresses.first
