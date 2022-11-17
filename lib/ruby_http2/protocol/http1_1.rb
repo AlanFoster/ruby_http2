@@ -3,8 +3,9 @@
 module RubyHttp2
   module Protocol
     class Http1_1
-      # The HTTP separator for HTTP/1.1 responoses
+      # The HTTP separator for HTTP/1.1 responses
       CRLF = "\r\n".b
+      private_constant :CRLF
 
       # Class dedicated to handle http response headers,
       # as it's possibe for client/servers to send duplicate headers

@@ -10,6 +10,7 @@
 !.rubocop.yml
 !.ruby-version
 !Gemfile
+!.gitignore
 !Gemfile.lock
 !LICENSE.txt
 !Rakefile

@@ -58,15 +58,8 @@ I, [2022-11-15T00:10:51.320248 #77698]  INFO -- : connection opened
 
 ### http 1.1 - ssl - port 443
 
-If run with Ruby 3.2 - this tool also honors curl's `SSLKEYLOGFILE` semantics, which allows for dissecting HTTPS/tls traffic with wireshark etc
-
-Additional details:
-- nss file format - https://firefox-source-docs.mozilla.org/security/nss/legacy/key_log_format/index.html
-- curl example with wireshark dissector - https://daniel.haxx.se/blog/2018/01/15/inspect-curls-tls-traffic/
-
-
 ```bash
-$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --header 'Host: example.com' --sslCalling `DidYouMean::SPELL_CHECKERS.merge!(error_name => spell_checker)' has been deprecated. Please call `DidYouMean.correct_error(error_name, spell_checker)' instead.
+$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --header 'Host: example.com' --ssl
 Configuration: {
   "host": "example.com",
   "port": "443",
@@ -105,6 +98,28 @@ I, [2022-11-15T17:39:39.949583 #81]  INFO -- : connecting to #<Addrinfo: 93.184.
  @status=200,
  @status_text="OK">
 ```
+
+### http 2 - ssl - port 443
+
+When the `--http2` option is specified, the SSL alpn will be set to `h2`. To gracefully fall back to `http1.1` support - the `--http1.1` flag must also be specified
+
+```bash
+$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb --host example.com --port 443 --header 'Host: example.com' --ssl --http2
+```
+
+## SSLKEYLOGFILE
+
+If running with Ruby 3.2 - this tool honors curl's `SSLKEYLOGFILE` semantics, which allows for dissecting HTTPS/tls traffic with wireshark etc:
+
+```bash
+$ SSLKEYLOGFILE=$(pwd)/sslkeylogfile ruby examples/example.rb # ... options ...
+```
+
+This will create a new `sslkeylogfile` with data such as `CLIENT_RANDOM` in the nss file format 
+
+Additional details:
+- nss file format - https://firefox-source-docs.mozilla.org/security/nss/legacy/key_log_format/index.html
+- curl example with wireshark dissector - https://daniel.haxx.se/blog/2018/01/15/inspect-curls-tls-traffic/
 
 ## License
 

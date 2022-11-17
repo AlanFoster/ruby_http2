@@ -15,7 +15,7 @@ protocols = %i[
 options = {
   host: nil,
   port: nil,
-  protocol: protocols.first,
+  protocol: nil,
   ssl: false,
   verbose: true,
   path: '/',
@@ -52,8 +52,11 @@ options_parser = OptionParser.new do |opts|
     options[:path] = path
   end
 
-  opts.on('--protocol=PROTOCOL', protocols, 'The protocol to use') do |protocol|
-    options[:protocol] = protocol
+  protocols.each do |protocol|
+    opts.on("--#{protocol}", "Negotiate with #{protocol}") do
+      options[:protocols] ||= []
+      options[:protocols] << :http2
+    end
   end
 
   opts.on('--log-level=log_level', Integer, 'Log level') do |log_level|
@@ -72,10 +75,13 @@ end
 
 options_parser.parse!
 
+# default the protocol to the first supported protocol if not user-specified
+options[:protocols] ||= [protocols.first]
+
 puts "Configuration: #{JSON.pretty_generate(options)}"
 
-if options[:host].nil?
-  puts 'Host required'
+if options[:host].nil? ||  options[:port].nil?
+  puts 'Host required and port required'
   puts options_parser.help
   exit 1
 end
@@ -85,7 +91,7 @@ logger.level = options[:log_level]
 client = RubyHttp2::Client.new(
   host: options[:host],
   port: options[:port],
-  protocol: options[:protocol],
+  protocols: options[:protocols],
   ssl: options[:ssl],
   logger: logger,
   sslkeylogfile: options[:sslkeylogfile]
