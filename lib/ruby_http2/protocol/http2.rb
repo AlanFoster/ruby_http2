@@ -12,9 +12,7 @@ module RubyHttp2
       CONNECTION_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".b
       private_constant :CONNECTION_PREFACE
 
-      # Class dedicated to handle http response headers,
-      # as it's possible for client/servers to send duplicate headers
-      # with identical names/case sensitivity overlaps etc
+      # Class dedicated to handle http response headers
       class ResponseHeaders
         # @param [Array<String>] headers
         def initialize(headers: [])
@@ -489,6 +487,8 @@ module RubyHttp2
           [":scheme", url.scheme],
           [":authority", url.host],
         ]
+        # https://httpwg.org/specs/rfc9113.html#HttpHeaders
+        # Field names MUST be converted to lowercase when constructing an HTTP/2 message
         get_request.headers = pseudo_request_headers + headers.map { |k, v| [k.downcase, v] }
         socket.write_nonblock(get_request.to_binary_s)
 
